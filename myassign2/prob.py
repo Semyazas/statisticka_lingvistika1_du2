@@ -38,7 +38,7 @@ def count_words(file: list) -> tuple:
     return word_counts, word_tuple_counts, word_triple_counts, characters, last_bigram_unigram
 
 class Probability:
-    def __init__(self, word_counts, word_tuple_counts,  characters, last_bigram_uningram,word_triple_counts):
+    def __init__(self, word_counts, word_tuple_counts,word_triple_counts,  characters, last_bigram_uningram):
         self.word_counts = word_counts
         self.word_tuple_counts = word_tuple_counts
         self.characters = characters
@@ -48,18 +48,18 @@ class Probability:
         self.bigram_joint_distribution = {}
         self.bigram_conditional_distribution = {}
 
-    def compute_distributions(self,word_counts, word_tuple_counts):
-        sum_of_word_counts = sum(word_counts.values())
-        sum_of_bigram_counts = sum(word_tuple_counts.values())
+    def compute_distributions(self):
+        sum_of_word_counts = sum(self.word_counts.values())
+        sum_of_bigram_counts = sum(self.word_tuple_counts.values())
 
-        self.unigram_distribution = {word: count / sum_of_word_counts for word, count in word_counts.items()}
+        self.unigram_distribution = {word: count / sum_of_word_counts for word, count in self.word_counts.items()}
 
-        self.bigram_joint_distribution = {bigram: count /sum_of_bigram_counts for bigram, count in word_tuple_counts.items()}
+        self.bigram_joint_distribution = {bigram: count /sum_of_bigram_counts for bigram, count in self.word_tuple_counts.items()}
 
         self.bigram_conditional_distribution = {
-            bigram: count / word_counts[bigram[0]] if bigram[0] not in self.last_bigram_unigram 
-                    else count / (word_counts[bigram[0]] - 1)
-            for bigram, count in word_tuple_counts.items()
+            bigram: count / self.word_counts[bigram[0]] if bigram[0] not in self.last_bigram_unigram 
+                    else count / (self.word_counts[bigram[0]] - 1)
+            for bigram, count in self.word_tuple_counts.items()
         }
 
     def mutal_information(self, bigram):
