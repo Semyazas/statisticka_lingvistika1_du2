@@ -38,7 +38,7 @@ def count_words(file: list) -> tuple:
     return word_counts, word_tuple_counts, word_triple_counts, characters, last_bigram_unigram
 
 class Probability:
-    def __init__(self, word_counts, word_tuple_counts,word_triple_counts,  characters, last_bigram_uningram):
+    def __init__(self, word_counts, word_tuple_counts,characters, last_bigram_uningram):
         self.word_counts = word_counts
         self.word_tuple_counts = word_tuple_counts
         self.characters = characters
