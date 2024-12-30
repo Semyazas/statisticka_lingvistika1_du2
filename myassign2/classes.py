@@ -24,7 +24,7 @@ class Word_Classes_Distribution(Probability):
 
 
         for left_class, right_class in self.classes_bigram_counts.keys():
-            new_classes = self.word_to_classs.copy()
+            new_classes = self.word_to_classs.copy()         
             new_class = tuple(left_class + right_class)
             new_classes[new_class] = new_classes[left_class] + new_classes[right_class] 
             new_classes.remove(left_class)
@@ -39,7 +39,10 @@ class Word_Classes_Distribution(Probability):
                 if self.word_to_class[word] == right_class:
                     w_class = new_class
 
-                new_class_bigram_counts[tuple(h_class + w_class)] =
+                if tuple(h_class + w_class) not in new_class_bigram_counts:
+                    new_class_bigram_counts[tuple(h_class + w_class)] = 1 
+                else:
+                    new_class_bigram_counts[tuple(h_class + w_class)] += 1
 
                 if self.word_to_class[history] == left_class and self.word_to_class[word] == right_class:
                     new_word_to_class[word] = new_class
@@ -47,6 +50,9 @@ class Word_Classes_Distribution(Probability):
                 else:
                     new_word_to_class[word] = self.word_to_class[history]
                     new_word_to_class[history] = self.word_to_class[word]
+
+            new_class_bigram_distribution = self.get_class_distribution()
+
 
                 
                 
@@ -59,7 +65,7 @@ class Word_Classes_Distribution(Probability):
         return self.word_classes_count
     
 
-    def probability_of_bigram(self, history : str, word : str, distr : dict, classes_counts : dict, classes_bigram_counts) -> dict:
+    def get_class_distribution(self, history : str, word : str, distr : dict, classes_counts : dict, classes_bigram_counts) -> dict:
         w_class = self.word_to_class[word]
         h_class = self.word_to_class[history]
         for history, word in self.word_tuple_counts.keys():
