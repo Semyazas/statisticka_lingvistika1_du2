@@ -38,11 +38,26 @@ def count_words(file: list) -> tuple:
     return word_counts, word_tuple_counts, word_triple_counts, characters, last_bigram_unigram
 
 class Probability:
-    def __init__(self, word_counts, word_tuple_counts,characters, last_bigram_uningram):
+
+    def __init__(self, word_counts, word_tuple_counts, characters, last_bigram_unigram):
+        """#+
+        Initializes a Probability object with word counts, bigram counts, character set, and the last bigram/unigram.#+
+        
+        Parameters:
+        - word_counts (dict): A dictionary where keys are words and values are their counts.#+
+        - word_tuple_counts (dict): A dictionary where keys are word tuples (bigrams or trigrams) and values are their counts.#+
+        - characters (set): A set of unique characters found in the text.#+
+        - last_bigram_unigram (list): A list containing the last bigram and unigram from the text.#+
+
+        Initializes the following attributes:#+
+        - unigram_distribution (dict): A dictionary where keys are words and values are their probabilities.#+
+        - bigram_joint_distribution (dict): A dictionary where keys are bigrams and values are their joint probabilities.#+
+        - bigram_conditional_distribution (dict): A dictionary where keys are bigrams and values are their conditional probabilities.#+
+        """
         self.word_counts = word_counts
         self.word_tuple_counts = word_tuple_counts
         self.characters = characters
-        self.last_bigram_unigram = last_bigram_uningram
+        self.last_bigram_unigram = last_bigram_unigram
 
         self.unigram_distribution = {}
         self.bigram_joint_distribution = {}
@@ -80,6 +95,6 @@ class Probability:
         unigram_a_probability = self.unigram_distribution.get(unigram_a, 0)
         unigram_b_probability = self.unigram_distribution.get(unigram_b, 0)
 
-        mutual_information = joint_probability / (unigram_a_probability * unigram_b_probability)
+        mutual_information =  math.log2(joint_probability / (unigram_a_probability * unigram_b_probability))
 
         return mutual_information

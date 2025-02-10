@@ -66,7 +66,6 @@ class Word_Classes_Distribution(Probability):
             return distr[(history, word)]
         return 0
 
-
     def greedy_A_classes(self) -> dict[str,int]:
         self.compute_distributions()
 
@@ -78,9 +77,6 @@ class Word_Classes_Distribution(Probability):
 
         return self.word_classes_count
     
-
-
-
     def get_class_distribution(self, history : str, word : str, distr : dict, classes_counts : dict, classes_bigram_counts) -> dict:
         w_class = self.word_to_class[word]
         h_class = self.word_to_class[history]
