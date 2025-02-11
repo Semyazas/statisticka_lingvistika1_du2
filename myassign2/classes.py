@@ -39,18 +39,22 @@ class Word_Classes_Distribution(Probability):
 
     def get_q_k(self,left_class, right_class,bigram_counts):
         return bigram_counts[(left_class, right_class)] / self.num_all_bigrams * math.log2( 
-                                                                    self.num_all_bigrams * 
-                                                                    bigram_counts[(left_class, right_class)] / (
-                                                                        self.single_class_counts(left_class, bigram_counts, True)*
-                                                                        self.single_class_counts(right_class, bigram_counts, True)
-                                                                    )                   
-                                                                )
+                                                        self.num_all_bigrams * 
+                                                        bigram_counts[(left_class, right_class)] / (
+                                                            self.single_class_count(left_class, bigram_counts, True)*
+                                                            self.single_class_count(right_class, bigram_counts, True)
+                                                        )                   
+                                                    )
 
-    def get_s_k(self,cl, bigram_counts):
-        sum_left = sum([for ]
+    def get_s_k(self,cl,  q_counts):
+        sum_left = sum([q_counts[(cont,w)] for cont,w in q_counts.keys() if cont == cl ])
+        sum_right = sum([q_counts[(cont,w)] for cont,w in q_counts.keys() if w == cl ])
 
-        for 
-        pass
+        return sum_left + sum_right - q_counts[(cl,cl)]
+
+    def get_sub_k(self,s_counts,q_counts,cl_left,cl_right):
+        return s_counts[cl_left] + s_counts[cl_right] - q_counts[(cl_left,cl_right)] - q_counts[(cl_right,cl_left)]
+
 
     def merge_bigram_class_counts(self,left_class : tuple[str],right_class : tuple[str]) -> dict:
         new_bigram_counts = self.classes_bigram_counts.copy()
