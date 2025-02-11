@@ -1,4 +1,5 @@
 from prob import Probability, read_file, count_words
+import math
 
 def actual_count_words(file : list[str]) -> tuple:
     file = [line.split('/')[0] for line in file]
@@ -15,7 +16,8 @@ class Word_Classes_Distribution(Probability):
         self.classes_counts = {}
         self.classes_bigram_counts = {}
         self.classes_bigram_distributions = {}
-    
+
+        self.num_all_bigrams = 0
    
     
     def get_class_distribution(self, history : str, word : str, distr : dict, classes_counts : dict, classes_bigram_counts) -> dict:
@@ -25,8 +27,29 @@ class Word_Classes_Distribution(Probability):
             distr[(history,word)] = self.word_counts(word) / classes_counts(w_class) *  classes_bigram_counts((h_class, w_class)) / classes_counts(h_class) 
         return distr
 
+    def single_class_count(self,cl,bigram_counts,context = False):
+        count = 0
+        i =1
+        if context:
+            i = 0
+        for bigram in bigram_counts.keys():
+            if bigram[i] == cl:
+                count += bigram_counts[bigram[i]] 
+        return count
 
-    def get_q_k(self,left_class, right_class):
+    def get_q_k(self,left_class, right_class,bigram_counts):
+        return bigram_counts[(left_class, right_class)] / self.num_all_bigrams * math.log2( 
+                                                                    self.num_all_bigrams * 
+                                                                    bigram_counts[(left_class, right_class)] / (
+                                                                        self.single_class_counts(left_class, bigram_counts, True)*
+                                                                        self.single_class_counts(right_class, bigram_counts, True)
+                                                                    )                   
+                                                                )
+
+    def get_s_k(self,cl, bigram_counts):
+        sum_left = sum([for ]
+
+        for 
         pass
 
     def merge_bigram_class_counts(self,left_class : tuple[str],right_class : tuple[str]) -> dict:
@@ -54,7 +77,6 @@ class Word_Classes_Distribution(Probability):
                     to_remove.append((history,word))
 
         for t in to_remove:
-            print(t)
             new_bigram_counts.pop(t)
 
         return new_bigram_counts
