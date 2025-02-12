@@ -55,7 +55,31 @@ class Word_Classes_Distribution(Probability):
     def get_sub_k(self,s_counts,q_counts,cl_left,cl_right):
         return s_counts[cl_left] + s_counts[cl_right] - q_counts[(cl_left,cl_right)] - q_counts[(cl_right,cl_left)]
 
+    def get_add_k(self,new_class, q_counts):
+        sum_left = sum([q_counts[(cont,w)] for cont,w in q_counts.keys() if cont == new_class ])
+        sum_right = sum([q_counts[(cont,w)] for cont,w in q_counts.keys() if w == new_class ])
+        return sum_right + sum_left + q_counts[(new_class,new_class)]
 
+    def init_q_counts(self) -> dict:
+        q_counts = {}
+        for history, word in self.word_tuple_counts.keys():
+            q_counts[(history,word)] = self.get_q_k(history,word)
+        return q_counts
+
+    def init_s_k(self,q_counts) -> dict:
+        s_k_counts = {}
+        classes = set([l_cl for l_cl,_ in q_counts.key()] + [r_cl for _,r_cl in q_counts.key()])
+
+        for cl in classes:
+            s_k_counts[cl] = self.get_s_k(cl,q_counts)
+        return s_k_counts 
+
+    def init_Losses(self,q_counts):
+        L = {}
+        for l_class,r_class in q_counts.keys():
+            L = sub
+
+    
     def merge_bigram_class_counts(self,left_class : tuple[str],right_class : tuple[str]) -> dict:
         new_bigram_counts = self.classes_bigram_counts.copy()
 
