@@ -60,11 +60,13 @@ class Word_Classes_Distribution(Probability):
         sum_right = sum([q_counts[(cont,w)] for cont,w in q_counts.keys() if w == new_class ])
         return sum_right + sum_left + q_counts[(new_class,new_class)]
 
-    def init_q_counts(self) -> dict:
+    def init_q_counts(self, bigram_counts) -> dict:
         q_counts = {}
-        for history, word in self.word_tuple_counts.keys():
+        for history, word in bigram_counts.keys():
             q_counts[(history,word)] = self.get_q_k(history,word)
         return q_counts
+
+    
 
     def init_s_k(self,q_counts) -> dict:
         s_k_counts = {}
@@ -74,10 +76,16 @@ class Word_Classes_Distribution(Probability):
             s_k_counts[cl] = self.get_s_k(cl,q_counts)
         return s_k_counts 
 
-    def init_Losses(self,q_counts):
+    def init_Losses(self, q_counts, s_counts, classes) -> dict:
         L = {}
         for l_class,r_class in q_counts.keys():
-            L = sub
+            new_class = (l_class,r_class)
+            new_q_counts = self.init_q_counts(self.merge_bigram_class_counts(l_class,r_class))
+            L[new_class] = ( s_counts[l_class] + s_counts[r_class] - q_counts[new_class]
+                           - q_counts[(r_class,l_class)] - q_counts[(new_class,new_class)]
+                           - sum([new_q_counts[(l_cl,r_cl)] for l_cl,r_cl in new_q_counts.keys() if r_cl == new_class and l_cl != new_class])
+                           - sum([new_q_counts[(l_cl,r_cl)] for l_cl,r_cl in new_q_counts.keys() if r_cl != new_class and l_cl == new_class])
+            )
 
     
     def merge_bigram_class_counts(self,left_class : tuple[str],right_class : tuple[str]) -> dict:
@@ -108,6 +116,16 @@ class Word_Classes_Distribution(Probability):
             new_bigram_counts.pop(t)
 
         return new_bigram_counts
+
+    def GA_classes(self, number_of_iterations : int):
+        q_counts = self.init_q_counts(self.word_tuple_counts)
+        s_counts = self.init_s_k(q_counts)
+
+        classes = [cl for cl in self.word_counts.keys()]
+
+        ini
+
+        for cl1, cl2 in zip(classes, classes):
 
 
 def assert_dicts_equal(dict1, dict2):
