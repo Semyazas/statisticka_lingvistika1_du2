@@ -6,7 +6,6 @@ def actual_count_words(file : list[str]) -> tuple:
     return count_words(file = file)
 
 class Word_Classes_Distribution(Probability):
-
     def __init__(self,word_counts : dict[str,int],bigram_counts : dict[tuple[str,str],int],
                   characters : list[str], last_bigram_unigram : list[tuple])-> None:
         Probability.__init__(self, word_counts, bigram_counts,characters, last_bigram_unigram)
@@ -18,7 +17,6 @@ class Word_Classes_Distribution(Probability):
         self.classes_bigram_distributions = {}
 
         self.num_all_bigrams = 0
-   
     
     def get_class_distribution(self, history : str, word : str, distr : dict, classes_counts : dict, classes_bigram_counts) -> dict:
         w_class = self.word_to_class[word]
@@ -27,7 +25,7 @@ class Word_Classes_Distribution(Probability):
             distr[(history,word)] = self.word_counts(word) / classes_counts(w_class) *  classes_bigram_counts((h_class, w_class)) / classes_counts(h_class) 
         return distr
 
-    def single_class_count(self,cl,bigram_counts,context = False):
+    def single_class_count(self,cl,bigram_counts,context = False) -> int:
         count = 0
         i =1
         if context:
@@ -37,14 +35,16 @@ class Word_Classes_Distribution(Probability):
                 count += bigram_counts[bigram[i]] 
         return count
 
-    def get_q_k(self,left_class, right_class,bigram_counts):
-        return bigram_counts[(left_class, right_class)] / self.num_all_bigrams * math.log2( 
-                                                        self.num_all_bigrams * 
-                                                        bigram_counts[(left_class, right_class)] / (
-                                                            self.single_class_count(left_class, bigram_counts, True)*
-                                                            self.single_class_count(right_class, bigram_counts, True)
-                                                        )                   
-                                                    )
+    def get_q_k(self,left_class, right_class,bigram_counts) -> float:
+        if (left_class, right_class) in bigram_counts:
+            return (bigram_counts[(left_class, right_class)] / self.num_all_bigrams) * math.log2(
+                self.num_all_bigrams * bigram_counts[(left_class, right_class)] /
+                (self.single_class_count(left_class, bigram_counts, True) *
+                self.single_class_count(right_class, bigram_counts, True))
+            )
+        else:
+            return 0
+
 
     def get_s_k(self,cl,  q_counts):
         sum_left = sum([q_counts[(cont,w)] for cont,w in q_counts.keys() if cont == cl ])
@@ -60,23 +60,23 @@ class Word_Classes_Distribution(Probability):
         sum_right = sum([q_counts[(cont,w)] for cont,w in q_counts.keys() if w == new_class ])
         return sum_right + sum_left + q_counts[(new_class,new_class)]
 
-    def init_q_counts(self, bigram_counts) -> dict:
+    def init_q_counts(self, bigram_counts, classes) -> dict:
         q_counts = {}
-        for history, word in bigram_counts.keys():
-            q_counts[(history,word)] = self.get_q_k(history,word)
+        for history, word in zip(classes,classes):
+            q_counts[(history,word)] = self.get_q_k(history,word,bigram_counts)
         return q_counts
 
     
 
     def init_s_k(self,q_counts) -> dict:
         s_k_counts = {}
-        classes = set([l_cl for l_cl,_ in q_counts.key()] + [r_cl for _,r_cl in q_counts.key()])
+        classes = set([l_cl for l_cl,_ in q_counts.keys()] + [r_cl for _,r_cl in q_counts.keys()])
 
         for cl in classes:
             s_k_counts[cl] = self.get_s_k(cl,q_counts)
         return s_k_counts 
 
-    def init_Losses(self, q_counts, s_counts, classes) -> dict:
+    def init_Losses(self, q_counts, s_counts) -> dict:
         L = {}
         for l_class,r_class in q_counts.keys():
             new_class = (l_class,r_class)
@@ -118,14 +118,19 @@ class Word_Classes_Distribution(Probability):
         return new_bigram_counts
 
     def GA_classes(self, number_of_iterations : int):
-        q_counts = self.init_q_counts(self.word_tuple_counts)
+        classes = [cl for cl in self.word_counts.keys()]
+        q_counts = self.init_q_counts(self.word_tuple_counts,classes)
         s_counts = self.init_s_k(q_counts)
 
-        classes = [cl for cl in self.word_counts.keys()]
+        losses = self.init_Losses(q_counts, s_counts)
 
-        ini
-
-        for cl1, cl2 in zip(classes, classes):
+        max_cl = None
+        max = -10000000
+        for merged_cl in losses.keys():
+            if max < losses[merged_cl]:
+                max = losses[merged_cl]
+                max_cl = merged_cl
+        print(f"Best merged class: {max_cl}, Loss: {max}")
 
 
 def assert_dicts_equal(dict1, dict2):
@@ -150,7 +155,6 @@ def test_merge():
     wc.classes_bigram_counts = wc_classes_bigram_counts
     
     tuple_counts = wc.merge_bigram_class_counts(("c2",),("c4",))
-    print(tuple_counts)
     assert_dicts_equal(tuple_counts, bigram_counts)
     print("Test successful !")
 
@@ -162,7 +166,7 @@ if __name__ == '__main__':
 #    print(word_counts)
 
     w_cl_distr = Word_Classes_Distribution(word_counts, word_tuple_counts,characters, last_bigram_unigram)
-    w_cl_distr.greedy_A_classes()
 
+    w_cl_distr.GA_classes(10)
 
     
