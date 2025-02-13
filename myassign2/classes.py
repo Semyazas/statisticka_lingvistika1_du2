@@ -13,10 +13,10 @@ class Word_Classes_Distribution(Probability):
         
         self.word_to_class = {}
         self.classes_counts = {}
-        self.classes_bigram_counts = {}
+        self.classes_bigram_counts = self.word_tuple_counts
         self.classes_bigram_distributions = {}
 
-        self.num_all_bigrams = 0
+        self.num_all_bigrams = len(self.classes_bigram_counts.keys())
     
     def get_class_distribution(self, history : str, word : str, distr : dict, classes_counts : dict, classes_bigram_counts) -> dict:
         w_class = self.word_to_class[word]
@@ -32,7 +32,7 @@ class Word_Classes_Distribution(Probability):
             i = 0
         for bigram in bigram_counts.keys():
             if bigram[i] == cl:
-                count += bigram_counts[bigram[i]] 
+                count += bigram_counts[bigram] 
         return count
 
     def get_q_k(self,left_class, right_class,bigram_counts) -> float:
@@ -44,13 +44,15 @@ class Word_Classes_Distribution(Probability):
             )
         else:
             return 0
-
+    def q_k(self,cl, q_counts) -> float:
+        if cl in q_counts: return q_counts[cl]
+        else: return 0
 
     def get_s_k(self,cl,  q_counts):
         sum_left = sum([q_counts[(cont,w)] for cont,w in q_counts.keys() if cont == cl ])
         sum_right = sum([q_counts[(cont,w)] for cont,w in q_counts.keys() if w == cl ])
 
-        return sum_left + sum_right - q_counts[(cl,cl)]
+        return sum_left + sum_right - self.q_k(cl,q_counts)
 
     def get_sub_k(self,s_counts,q_counts,cl_left,cl_right):
         return s_counts[cl_left] + s_counts[cl_right] - q_counts[(cl_left,cl_right)] - q_counts[(cl_right,cl_left)]
@@ -62,7 +64,7 @@ class Word_Classes_Distribution(Probability):
 
     def init_q_counts(self, bigram_counts, classes) -> dict:
         q_counts = {}
-        for history, word in zip(classes,classes):
+        for history, word in bigram_counts:
             q_counts[(history,word)] = self.get_q_k(history,word,bigram_counts)
         return q_counts
 
@@ -76,17 +78,17 @@ class Word_Classes_Distribution(Probability):
             s_k_counts[cl] = self.get_s_k(cl,q_counts)
         return s_k_counts 
 
-    def init_Losses(self, q_counts, s_counts) -> dict:
+    def init_Losses(self, q_counts, s_counts, classes) -> dict:
         L = {}
         for l_class,r_class in q_counts.keys():
             new_class = (l_class,r_class)
-            new_q_counts = self.init_q_counts(self.merge_bigram_class_counts(l_class,r_class))
+            new_q_counts = self.init_q_counts(self.merge_bigram_class_counts((l_class,),(r_class,)),classes)
             L[new_class] = ( s_counts[l_class] + s_counts[r_class] - q_counts[new_class]
-                           - q_counts[(r_class,l_class)] - q_counts[(new_class,new_class)]
+                           - self.q_k((r_class,l_class),q_counts) - self.q_k((new_class,new_class),q_counts)
                            - sum([new_q_counts[(l_cl,r_cl)] for l_cl,r_cl in new_q_counts.keys() if r_cl == new_class and l_cl != new_class])
                            - sum([new_q_counts[(l_cl,r_cl)] for l_cl,r_cl in new_q_counts.keys() if r_cl != new_class and l_cl == new_class])
             )
-
+        return L
     
     def merge_bigram_class_counts(self,left_class : tuple[str],right_class : tuple[str]) -> dict:
         new_bigram_counts = self.classes_bigram_counts.copy()
@@ -94,13 +96,12 @@ class Word_Classes_Distribution(Probability):
         new_class = tuple(left_class + right_class)
 
         print(new_class)
-        new_bigram_counts[(new_class,new_class)] = (
-                                                            new_bigram_counts[(left_class,right_class)] + 
-                                                            new_bigram_counts[(right_class,left_class)] + 
-                                                            new_bigram_counts[(left_class,left_class)]  + 
-                                                            new_bigram_counts[(right_class,right_class)]
-                                                        )
-        to_remove = [(left_class,right_class),(left_class,left_class),(right_class,right_class),(right_class,left_class)]
+        to_remove = []
+        new_bigram_counts[(new_class,new_class)] = 0
+        for item in [(left_class, right_class), (left_class,left_class), (right_class,left_class), (right_class,right_class)]:
+            if item in new_bigram_counts.keys():
+                new_bigram_counts[(new_class,new_class)] += new_bigram_counts[item]
+                to_remove.append(item)
 
         for history,word in self.classes_bigram_counts.keys():
             if (history,word) not in to_remove:
@@ -111,8 +112,10 @@ class Word_Classes_Distribution(Probability):
                 elif  (history != left_class and word == right_class) or (history != right_class and word == left_class):
                     new_bigram_counts[(history,new_class)] = new_bigram_counts[(history,left_class)] + new_bigram_counts[(history,right_class)]
                     to_remove.append((history,word))
-
+       # print(new_bigram_counts)
         for t in to_remove:
+       #     print(t)
+            
             new_bigram_counts.pop(t)
 
         return new_bigram_counts
@@ -121,16 +124,17 @@ class Word_Classes_Distribution(Probability):
         classes = [cl for cl in self.word_counts.keys()]
         q_counts = self.init_q_counts(self.word_tuple_counts,classes)
         s_counts = self.init_s_k(q_counts)
-
-        losses = self.init_Losses(q_counts, s_counts)
-
-        max_cl = None
-        max = -10000000
+    #    print(q_counts)
+    #    return
+        losses = self.init_Losses(q_counts, s_counts,classes)
+      #  print(losses)
+        min_cl = None
+        min = 10000000
         for merged_cl in losses.keys():
-            if max < losses[merged_cl]:
-                max = losses[merged_cl]
-                max_cl = merged_cl
-        print(f"Best merged class: {max_cl}, Loss: {max}")
+            if min > losses[merged_cl]:
+                min = losses[merged_cl]
+                min_cl = merged_cl
+        print(f"Best merged class: {min_cl}, Loss: {min}")
 
 
 def assert_dicts_equal(dict1, dict2):

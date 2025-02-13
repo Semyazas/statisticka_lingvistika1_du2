@@ -22,7 +22,7 @@ def count_words(file: list) -> tuple:
 
         if i > 0:
             previous = file[i - 1].strip()
-            word_tuple_counts[(previous, word)] = word_tuple_counts.get((previous, word), 0) + 1
+            word_tuple_counts[((previous,), (word,))] = word_tuple_counts.get(((previous,), (word,)), 0) + 1
 
         if i > 1:
             preprevious = file[i - 2].strip()
