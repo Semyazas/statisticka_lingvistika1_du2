@@ -25,15 +25,15 @@ class Word_Classes_Distribution(Probability):
             distr[(history,word)] = self.word_counts(word) / classes_counts(w_class) *  classes_bigram_counts((h_class, w_class)) / classes_counts(h_class) 
         return distr
     
-    def init_single_counts(self, left = False) -> dict:
+    def init_single_counts(self, bigram_counts : dict ,left = False) -> dict:
         single_q_counts = {}
         i = 1
         if left: i = 0
-        for bigram in self.classes_bigram_counts.keys():
+        for bigram in bigram_counts.keys():
             if bigram[i] in single_q_counts:
-                single_q_counts[bigram[i]] += self.classes_bigram_counts[bigram]
+                single_q_counts[bigram[i]] += bigram_counts[bigram]
             else:
-                single_q_counts[bigram[i]] = self.classes_bigram_counts[bigram]
+                single_q_counts[bigram[i]] = bigram_counts[bigram]
 
         return single_q_counts
 
@@ -49,7 +49,8 @@ class Word_Classes_Distribution(Probability):
                 single_counts_left : dict, single_counts_right : dict) -> float:
         #TODO: Napiš hezky
         if (left_class, right_class) in bigram_counts and (self.single_class_count(left_class, single_counts_left) !=0 
-                                                      and self.single_class_count(right_class, single_counts_right) !=0):
+            and self.single_class_count(right_class, single_counts_right) !=0) and bigram_counts[(left_class, right_class)] != 0:
+            
             return (bigram_counts[(left_class, right_class)] / self.num_all_bigrams) * math.log2(
                 self.num_all_bigrams * bigram_counts[(left_class, right_class)] /
                 (self.single_class_count(left_class, single_counts_left) *
@@ -61,13 +62,25 @@ class Word_Classes_Distribution(Probability):
         if cl in q_counts: return q_counts[cl]
         else: return 0
 
+    def a_plus_b_q_k(self,cl,q_counts,a,b,s_cl_left,s_cl_right,left = False) -> float:
+        denominator = 0
+        numerator= 0
+        if left:
+            denominator = (self.class_count((a,cl)) + self.class_count((b,cl))) 
+            numerator = (self.single_class_count(a,s_cl_left) + self.single_class_count(b,s_cl_left)) * self.class_count(cl,s_cl_right)
+        else: 
+            denominator = (self.class_count((cl,a)) + self.class_count((cl,b))) 
+            numerator = (self.single_class_count(b,s_cl_right) + self.single_class_count(a,s_cl_right)) * self.class_count(cl,s_cl_left)
+        if denominator != 0:
+            return denominator / self.num_all_bigrams * math.log2(denominator * self.num_all_bigrams / numerator)
+
     def s_k(self,cl,s_counts) -> float:
         if cl in s_counts: return s_counts[cl]
         else: return 0
 
     def get_s_k(self,cl,  q_counts):
-        sum_left = sum([q_counts[(cont,w)] for cont,w in q_counts.keys() if cont == cl ])
-        sum_right = sum([q_counts[(cont,w)] for cont,w in q_counts.keys() if w == cl ])
+        sum_left = sum([q_counts[(cont,w)] for cont,w in q_counts.keys() if cont == (cl,) ])
+        sum_right = sum([q_counts[(cont,w)] for cont,w in q_counts.keys() if w == (cl,) ])
 
         return sum_left + sum_right - self.q_k(cl,q_counts)
 
@@ -91,47 +104,50 @@ class Word_Classes_Distribution(Probability):
             s_k_counts[cl] = self.get_s_k(cl,q_counts)
         return s_k_counts 
 
-    #TODO: zkontrolovat formule
-    def init_Losses(self, q_counts, s_counts, classes, l_clc, r_clc) -> dict:
+    #TODO: zkontrolovat formule + opravit merge/q_counts
+    def init_Losses(self, q_counts, s_counts, classes) -> dict:
         L = {}
         class_list = list(classes)  # Convert to list to avoid multiple set/dict iterations
-        num_classes = len(class_list)
         
-
         for i, l_class in enumerate(class_list):
             print(f"{l_class} ; number: {i + 1}")
             s_l = self.s_k(l_class, s_counts)  # Precompute s_k values for efficiency
-            print(s_counts)
-            print(f"l_class: {l_class} ")
-            return 
-            for j in range(i + 1, num_classes):  # Avoid redundant computations
-                r_class = class_list[j]
-                new_class = (l_class, r_class)
 
-                # Precompute q_k values
+            for r_class in class_list: 
+                if (l_class != r_class):
+                    #TODO: oprav county
+                    new_class = (l_class, r_class)
+                    new_counts = self.merge_bigram_class_counts((l_class,), (r_class,))
+                    l_clc = self.init_single_counts(new_counts,left=False)
+                    r_clc = self.init_single_counts(new_counts,left=True)
+                    new_q_counts = self.init_q_counts(new_counts, classes, l_clc, r_clc)
 
-                # Compute new bigram counts only once per merge
-                new_q_counts = self.init_q_counts(self.merge_bigram_class_counts((l_class,), (r_class,)), classes, l_clc, r_clc)
+                    q_new_class = self.q_k((new_class), q_counts)
+                    q_l_r = self.q_k((r_class, l_class), q_counts)
 
-                q_new_class = self.q_k((new_class), q_counts)
-                q_l_r = self.q_k((r_class, l_class), q_counts)
-                q_new_new = self.q_k((new_class, new_class), new_q_counts)
-                print(r_class)
+#                    q_new_new = self.q_k((new_class, new_class), new_q_counts)
 
-                # Optimized sum calculations using dictionary lookups
-                sum1 = sum(v for (l_cl, r_cl), v in new_q_counts.items() if r_cl == new_class and l_cl != new_class)
-                sum2 = sum(v for (l_cl, r_cl), v in new_q_counts.items() if l_cl == new_class and r_cl != new_class)
-                print([v for (l_cl, r_cl), v in new_q_counts.items() if r_cl == new_class and l_cl != new_class])
-                # Compute loss value
+                    denom_new_new = 2* (self.class_count(l_class) + self.class_count(r_class))
+                    numerator_new_new = math.sqrt(denom_new_new)
+                    q_new_new = 0
 
-                print(s_l)
-                print(q_new_class)
-                print(q_l_r)
-                print(q_new_new)
-                print(sum1)
-                print(sum2)
-                print("--------------------------------")
-                L[new_class] = s_l + self.s_k(r_class, s_counts) - q_new_class - q_l_r - q_new_new - sum1 - sum2
+                    if denom_new_new != 0 and numerator_new_new != 0:
+                        q_new_new = (denom_new_new / self.num_all_bigrams) * math.log2(denom_new_new * 
+                                                            self.num_all_bigrams / numerator_new_new) 
+                    # Optimized sum calculations using dictionary lookups
+                    sum1 = sum(v for (l_cl, r_cl), v in new_q_counts.items() if r_cl == new_class and l_cl != new_class)
+                    sum2 = sum(v for (l_cl, r_cl), v in new_q_counts.items() if l_cl == new_class and r_cl != new_class)
+                # print([v for (l_cl, r_cl), v in new_q_counts.items() if r_cl == new_class and l_cl != new_class])
+                    # Compute loss value
+                    """
+                    print(s_l)
+                    print(q_new_class)
+                    print(q_l_r)
+                    print(q_new_new)
+                    print(sum1)
+                    print(sum2)
+                    print("--------------------------------")"""    
+                    L[new_class] = s_l + self.s_k(r_class, s_counts) - q_new_class - q_l_r - q_new_new - sum1 - sum2
 
         return L
     
@@ -145,7 +161,6 @@ class Word_Classes_Distribution(Probability):
             if item in new_bigram_counts.keys():
                 new_bigram_counts[(new_class,new_class)] += self.class_count(item)
                 to_remove.append(item)
-
         for history,word in self.classes_bigram_counts.keys():
             if (history,word) not in to_remove:
                 if (history == left_class and word != right_class) or (history == right_class and word != left_class):
@@ -158,6 +173,8 @@ class Word_Classes_Distribution(Probability):
                 elif  (history != left_class and word == right_class) or (history != right_class and word == left_class):
                     new_bigram_counts[(history,new_class)] = self.class_count((history,left_class)) + self.class_count((history,right_class))
                     to_remove.append((history,word))
+    #                print(f"nově přičtené: {new_bigram_counts[(history,new_class)]}")
+    #                print((history,new_class))
        # print(new_bigram_counts)
         for t in to_remove:
             new_bigram_counts.pop(t)
@@ -169,14 +186,13 @@ class Word_Classes_Distribution(Probability):
         classes = [cl for cl in self.word_counts.keys() if self.word_counts[cl] >= 10]
         print(len(classes))
 
-        left_cl_counts = self.init_single_counts(left=True)
-        right_cl_counts = self.init_single_counts(left=False)
+        left_cl_counts = self.init_single_counts(self.classes_bigram_counts,left=True)
+        right_cl_counts = self.init_single_counts(self.classes_bigram_counts,left=False)
         q_counts = self.init_q_counts(self.word_tuple_counts,classes,left_cl_counts,right_cl_counts)
         
         s_counts = self.init_s_k(classes,q_counts)
 
-
-        losses = self.init_Losses(q_counts, s_counts,classes,left_cl_counts,right_cl_counts)
+        losses = self.init_Losses(q_counts, s_counts,classes)
         print(losses)
         min_cl = None
         min = 10000000
