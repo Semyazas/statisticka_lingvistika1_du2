@@ -17,6 +17,11 @@ class Word_Classes_Distribution(Probability):
         self.classes_bigram_distributions = {}
         self.classes = [cl for cl in self.word_counts.keys() if self.word_counts[cl] ]
 
+        self.left_cl_counts =self.init_single_counts(self.classes_bigram_counts,left=True)
+        self.right_cl_counts = self.init_single_counts(self.classes_bigram_counts,left=False)
+        self.classes = [cl for cl in self.word_counts.keys() if self.word_counts[cl] >= 10]
+        self.all_classes = [cl for cl in self.word_counts.keys()]
+
         self.num_all_bigrams = sum(self.classes_bigram_counts.values())
     
     def init_single_counts(self, bigram_counts : dict ,left = False) -> dict:
@@ -62,7 +67,7 @@ class Word_Classes_Distribution(Probability):
         b = (b,)
         cl = (cl,)
 
-        if not left:
+        if not left: # (a+b,cl)
             denominator = (self.class_count((a,cl)) + self.class_count((b,cl))) 
             numerator = (self.single_class_count(a,s_cl_left) + self.single_class_count(b,s_cl_left)) * self.single_class_count(cl,s_cl_right)
         else: 
@@ -82,29 +87,28 @@ class Word_Classes_Distribution(Probability):
 
         return sum_left + sum_right - self.q_k(((cl,),(cl,)),q_counts) 
 
-    def init_q_counts(self, bigram_counts,  single_counts_left, single_counts_right) -> dict:
+    def init_q_counts(self, bigram_counts) -> dict:
         q_counts = {}
         for history, word in bigram_counts:
-            q_counts[(history,word)] = self.get_q_k(history,word,bigram_counts,single_counts_left , single_counts_right)
+            q_counts[(history,word)] = self.get_q_k(history,word,bigram_counts,self.left_cl_counts , self.right_cl_counts)
         return q_counts
 
-    def init_s_k(self,classes,q_counts) -> dict:
+    def init_s_k(self,q_counts) -> dict:
         s_k_counts = {}
-        for cl in classes:
-            s_k_counts[cl] = self.get_s_k(cl,q_counts, classes)
+        for cl in self.all_classes:
+            s_k_counts[cl] = self.get_s_k(cl,q_counts, self.all_classes)
         return s_k_counts 
 
     #TODO: zkontrolovat formule + opravit merge/q_counts
-    def init_Losses(self, q_counts, s_counts, classes,l_cl_counts,r_cl_counts, all_classes) -> dict:
+    def init_Losses(self, q_counts, s_counts) -> dict:
         L = {}
-        class_list = list(classes)  # Convert to list to avoid multiple set/dict iterations
+        class_list = list(self.classes)  # Convert to list to avoid multiple set/dict iterations
         for i, l_class in enumerate(class_list):
             print(f"{l_class} ; number: {i + 1}")
             s_l = self.s_k(l_class, s_counts)  # Precompute s_k values for efficiency
 
             for r_class in class_list: 
                 if (l_class != r_class):
-                    #TODO: oprav county
                     new_class = ((l_class,), (r_class,))
                     q_new_class = self.q_k(new_class, q_counts)
 
@@ -112,25 +116,38 @@ class Word_Classes_Distribution(Probability):
 
                     denom_new_new = (self.class_count(((l_class,), (r_class,))) + self.class_count(((l_class,), (l_class,))) + 
                                      self.class_count(((r_class,), (r_class,))) + self.class_count(((r_class,), (l_class,))))
-                    numerator_new_new = (self.single_class_count((l_class,),l_cl_counts) + self.single_class_count((r_class,),l_cl_counts)) * (
-                                         self.single_class_count((l_class,),r_cl_counts) + self.single_class_count((r_class,),r_cl_counts))
+                    numerator_new_new = (self.single_class_count((l_class,),self.right_cl_counts) + self.single_class_count((r_class,),self.left_cl_counts)) * (
+                                         self.single_class_count((l_class,),self.right_cl_counts) + self.single_class_count((r_class,),self.right_cl_counts))
                     q_new_new = 0
 
                     if denom_new_new != 0 and numerator_new_new != 0:
                         q_new_new = (denom_new_new / self.num_all_bigrams) * math.log2(denom_new_new * 
                                                             self.num_all_bigrams / numerator_new_new) 
 
-                    sum1 = sum(self.a_plus_b_q_k(l_cl,l_class,r_class,l_cl_counts,r_cl_counts,left = True) 
-                              for l_cl in all_classes if  l_cl != l_class and l_cl != r_class)
+                    sum1 = sum(self.a_plus_b_q_k(l_cl,l_class,r_class,self.left_cl_counts,self.right_cl_counts,left = True) 
+                              for l_cl in self.all_classes if  l_cl != l_class and l_cl != r_class)
 
-                    sum2 = sum(self.a_plus_b_q_k(r_cl,l_class,r_class,l_cl_counts,r_cl_counts,left = False)
-                                for r_cl in all_classes if r_cl != l_class and r_cl != r_class)
+                    sum2 = sum(self.a_plus_b_q_k(r_cl,l_class,r_class,self.left_cl_counts,self.right_cl_counts,left = False)
+                                for r_cl in self.all_classes if r_cl != l_class and r_cl != r_class)
 
                     L[new_class] = s_l + self.s_k(r_class, s_counts) - q_new_class - q_l_r - q_new_new - sum1 - sum2
-                    
-
         return L
-    
+
+
+    def update_loss_table(self,loss_table : dict, new_classes, new_s_counts, 
+                          s_counts, merged_class,sc_left, sc_right, sc_new_left, sc_new_right) -> dict:
+        new_loss_table = {}
+        for cl1 in new_classes:
+            for cl2 in new_classes:
+                new_loss_table[((cl1,),(cl1,))] = (loss_table[((cl1,),(cl2,))] - self.s_k(cl1,s_counts) + self.s_k(cl1,new_s_counts) - 
+                                                   self.s_k(cl2,s_counts) + self.s_k(cl2,new_s_counts) +
+                                                   self.a_plus_b_q_k(merged_class[0],cl1,cl2,sc_left,sc_right) +
+                                                   self.a_plus_b_q_k(merged_class[0],cl1,cl2,sc_left,sc_right, left = True) +
+                                                   self.a_plus_b_q_k(merged_class[1],cl1,cl2,sc_left,sc_right) +
+                                                   self.a_plus_b_q_k(merged_class[1],cl1,cl2,sc_left,sc_right, left = True) +
+                                                   self.a_plus_b_q_k(merged_class[0],cl1,cl2,sc_new_left,sc_new_right) +
+                                                   self.a_plus_b_q_k(merged_class[0],cl1,cl2,sc_new_left,sc_new_right,left = True) 
+                )
     def merge_bigram_class_counts(self,left_class : tuple[str],right_class : tuple[str]) -> dict:
         new_bigram_counts = self.classes_bigram_counts.copy()
 
@@ -157,19 +174,14 @@ class Word_Classes_Distribution(Probability):
 
     def GA_classes(self, number_of_iterations : int):
 
-        classes = [cl for cl in self.word_counts.keys() if self.word_counts[cl] >= 10]
-        all_classes = [cl for cl in self.word_counts.keys()]
-
-        left_cl_counts = self.init_single_counts(self.classes_bigram_counts,left=True)
-        right_cl_counts = self.init_single_counts(self.classes_bigram_counts,left=False)
-
-        q_counts = self.init_q_counts(self.classes_bigram_counts,left_cl_counts,right_cl_counts)
+        q_counts = self.init_q_counts(self.classes_bigram_counts)
         #print(classes_bigrams)
-        print(self.mutual_information(left_cl_counts,right_cl_counts))
+        print(self.mutual_information())
         print(self.mutual_information_using_q(q_counts))
-        s_counts = self.init_s_k(all_classes,q_counts)
+        s_counts = self.init_s_k(q_counts)
 
-        losses = self.init_Losses(q_counts, s_counts,classes,left_cl_counts,right_cl_counts,all_classes)
+        losses = self.init_Losses(q_counts, s_counts)
+
         print(losses)
         min_cl = None
         min = 10000000
@@ -177,16 +189,17 @@ class Word_Classes_Distribution(Probability):
             if min > losses[merged_cl]:
                 min = losses[merged_cl]
                 min_cl = merged_cl
+                
                 print(merged_cl)
         print(f"Best merged class: {min_cl}, Loss: {min}")
 
-    def mutual_information(self,left_cl_counts,right_cl_counts)-> float:
+    def mutual_information(self)-> float:
         mi = 0
-        for cl1 in self.classes:
-            for cl2 in self.classes:
+        for cl1 in self.all_classes:
+            for cl2 in self.all_classes:
                 if cl1!= cl2:
-                    p_cl1 = self.single_class_count((cl1,),left_cl_counts) / (self.num_all_bigrams) 
-                    p_cl2 = self.single_class_count((cl2,),right_cl_counts) / (self.num_all_bigrams)
+                    p_cl1 = self.single_class_count((cl1,),self.left_cl_counts) / (self.num_all_bigrams) 
+                    p_cl2 = self.single_class_count((cl2,),self.right_cl_counts) / (self.num_all_bigrams)
 
                     if p_cl1 != 0 and p_cl2 != 0 and  self.class_count(((cl1,),(cl2,))) > 0:
                         joint_p = self.class_count(((cl1,),(cl2,))) / self.num_all_bigrams
@@ -194,10 +207,9 @@ class Word_Classes_Distribution(Probability):
         return mi
     
     def mutual_information_using_q(self,q_counts)-> float:
-
         mi = 0
-        for cl1 in self.classes:
-            for cl2 in self.classes:
+        for cl1 in self.all_classes:
+            for cl2 in self.all_classes:
                 if cl1!= cl2:
                     mi += self.q_k(((cl1,),(cl2,)),q_counts)
         return mi
