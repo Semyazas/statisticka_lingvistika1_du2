@@ -194,7 +194,7 @@ class Word_Classes_Distribution(Probability):
             
                 if (merged_class == cl1 and merged_class != cl2) or (merged_class == cl2 and merged_class != cl1):
                     s_l = self.s_k(cl1, new_s_counts)
-                    new_loss_table[(cl1,cl2)] = self.compute_loss_2_classes(cl2,cl1,q_counts,new_s_counts,s_l,True)
+                    new_loss_table[(cl1,cl2)] = self.compute_loss_2_classes(cl2,cl1,q_counts,new_s_counts,s_l)
 
         return new_loss_table
 
@@ -208,7 +208,7 @@ class Word_Classes_Distribution(Probability):
         self.all_classes.remove(left_class)
         self.all_classes.remove(right_class)
         self.all_classes.append(new_class)
-        
+
     def merge_bigram_class_counts(self,left_class : tuple[str],right_class : tuple[str]) -> dict: #TODO: napiš to hezčejc, hlavně ty updaty
         new_bigram_counts = self.classes_bigram_counts.copy()
         new_class = tuple(left_class + right_class)
@@ -258,6 +258,7 @@ class Word_Classes_Distribution(Probability):
                     min_cl = merged_cl
                     print(merged_cl)
             print(f"Best merged class: {min_cl}, Loss: {min}")
+            self.history_of_merges.append(min_cl)
 
             old_left_counts = self.left_cl_counts.copy()
             old_right_counts = self.right_cl_counts.copy()
