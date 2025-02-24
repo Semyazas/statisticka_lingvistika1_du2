@@ -39,7 +39,8 @@ def count_words(file: list) -> tuple:
 
 class Probability:
 
-    def __init__(self, word_counts, word_tuple_counts, characters, last_bigram_unigram):
+    def __init__(self, word_counts, word_tuple_counts, 
+                 characters, last_bigram_unigram):
         """#+
         Initializes a Probability object with word counts, bigram counts, character set, and the last bigram/unigram.#+
         
@@ -55,6 +56,7 @@ class Probability:
         - bigram_conditional_distribution (dict): A dictionary where keys are bigrams and values are their conditional probabilities.#+
         """
         self.word_counts = word_counts
+        self.word_tupled_counts = {(w,):v for w,v in word_counts.items()}
         self.word_tuple_counts = word_tuple_counts
         self.characters = characters
         self.last_bigram_unigram = last_bigram_unigram
@@ -67,17 +69,17 @@ class Probability:
         sum_of_word_counts = sum(self.word_counts.values())
         sum_of_bigram_counts = sum(self.word_tuple_counts.values())
 
-        self.unigram_distribution = {word: count / sum_of_word_counts for word, count in self.word_counts.items()}
+        self.unigram_distribution = {word: count / sum_of_word_counts for word, count in self.word_tupled_counts.items()}
 
-        self.bigram_joint_distribution = {bigram: count /sum_of_bigram_counts for bigram, count in self.word_tuple_counts.items()}
+        self.bigram_joint_distribution = {bigram: count / sum_of_bigram_counts for bigram, count in self.word_tuple_counts.items()}
 
         self.bigram_conditional_distribution = {
-            bigram: count / self.word_counts[bigram[0]] if bigram[0] not in self.last_bigram_unigram 
-                    else count / (self.word_counts[bigram[0]] - 1)
+            bigram: count / self.word_tupled_counts[bigram[0]] if bigram[0] not in self.last_bigram_unigram 
+                    else count / (self.word_tupled_counts[bigram[0]] - 1)
             for bigram, count in self.word_tuple_counts.items()
         }
 
-    def mutal_information(self, bigram):
+    def pointwise_mutual_information(self, bigram):
         """
         Calculates the mutual information of a given bigram.
 
@@ -95,6 +97,8 @@ class Probability:
         unigram_a_probability = self.unigram_distribution.get(unigram_a, 0)
         unigram_b_probability = self.unigram_distribution.get(unigram_b, 0)
 
+        if unigram_a_probability == 0 or unigram_b_probability == 0 or joint_probability == 0:
+            return 0
         mutual_information =  math.log2(joint_probability / (unigram_a_probability * unigram_b_probability))
 
         return mutual_information
