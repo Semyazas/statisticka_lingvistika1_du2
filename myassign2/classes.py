@@ -5,6 +5,10 @@ def actual_count_words(file : list[str]) -> tuple:
     file = [line.split('/')[0] for line in file]
     return count_words(file = file)
 
+def get_tags(file : list[str]) -> tuple:
+    file = [line.split('/')[1]for line in file]
+    return file
+
 class Word_Classes_Distribution(Probability):
     def __init__(self,word_counts : dict[str,int],bigram_counts : dict[tuple[str,str],int],
                   characters : list[str], last_bigram_unigram : list[tuple])-> None:
@@ -45,8 +49,8 @@ class Word_Classes_Distribution(Probability):
                 single_counts[bigram[i]] = bigram_counts[bigram]
         return single_counts
 
-    def single_class_count(self,cl,single_q_counts : dict) -> int:
-        if cl in single_q_counts.keys(): return single_q_counts[cl]
+    def single_class_count(self,cl,single_cl_counts : dict) -> int:
+        if cl in single_cl_counts.keys(): return single_cl_counts[cl]
         else: return 0
 
     def class_count(self,cl, bigram_cl_counts = None) -> int:
@@ -73,7 +77,7 @@ class Word_Classes_Distribution(Probability):
         else: return 0
 
     def a_plus_b_q_k(self,cl,a,b,s_cl_left,s_cl_right,
-        bigr_cl_counts = None, left = False) -> float: #TODO: nešlo by přepsat nějak hezky ? 
+        bigr_cl_counts = None, left = False) -> float: 
         denominator = 0
         numerator= 0
 
@@ -92,10 +96,8 @@ class Word_Classes_Distribution(Probability):
         else: return 0
 
     def get_s_k(self,cl,  q_counts, all_classes) -> float:
-        sum_left = sum([self.q_k((cl,cl1),q_counts) for cl1 in all_classes ])
-        sum_right = sum([self.q_k((cl2,cl),q_counts) for cl2 in all_classes ])
-
-        return sum_left + sum_right - self.q_k((cl,cl),q_counts) 
+        sum_l_r = sum(self.q_k((cl,cl1),q_counts)  + self.q_k((cl1,cl),q_counts) for cl1 in all_classes )
+        return sum_l_r - self.q_k((cl,cl),q_counts) 
 
     def init_q_counts(self, bigram_counts) -> dict:
         q_counts = {}
@@ -105,7 +107,7 @@ class Word_Classes_Distribution(Probability):
 
     def init_s_k(self,q_counts) -> dict:
         s_k_counts = {}
-        for cl in self.all_classes:
+        for cl in self.classes:
             s_k_counts[cl] = self.get_s_k(cl,q_counts, self.all_classes)
         return s_k_counts 
     
@@ -165,28 +167,42 @@ class Word_Classes_Distribution(Probability):
         return L
 
 
-    def update_loss_table(self,loss_table : dict, new_classes, new_s_counts,q_counts, 
-                    s_counts, merged_class, a,b, old_bigram_counts) -> dict:
+    def update_loss_table(self, new_classes, new_s_counts,q_counts, merged_class, a,b) -> dict:
         new_loss_table = {}
         for cl1 in new_classes:
             for cl2 in new_classes:
-                if (cl1 , cl2) in loss_table:
-                    new_loss_table[(cl1, cl2)] = (loss_table[(cl1, cl2)] - 
-                                                    self.s_k(cl1,s_counts) + self.s_k(cl1,new_s_counts) - 
-                                                    self.s_k(cl2,s_counts) + self.s_k(cl2,new_s_counts) +
-                                                    self.a_plus_b_q_k(a,cl1,cl2,self.old_left_sc_counts,self.old_right_sc_counts,old_bigram_counts) +
-                                                    self.a_plus_b_q_k(a,cl1,cl2,self.old_left_sc_counts,self.old_right_sc_counts,old_bigram_counts, left = True) +
-                                                    self.a_plus_b_q_k(b,cl1,cl2,self.old_left_sc_counts,self.old_right_sc_counts,old_bigram_counts) +
-                                                    self.a_plus_b_q_k(b,cl1,cl2,self.old_left_sc_counts,self.old_right_sc_counts,old_bigram_counts, left = True) -
+                if (cl1 , cl2) in self.old_losses:
+                    new_loss_table[(cl1, cl2)] = (self.old_losses[(cl1, cl2)] - 
+                                                    self.s_k(cl1,self.old_s_counts) + self.s_k(cl1,new_s_counts) - 
+                                                    self.s_k(cl2,self.old_s_counts) + self.s_k(cl2,new_s_counts) +
+                                                    self.a_plus_b_q_k(a,cl1,cl2,self.old_left_sc_counts,self.old_right_sc_counts,self.old_bigram_counts) +
+                                                    self.a_plus_b_q_k(a,cl1,cl2,self.old_left_sc_counts,self.old_right_sc_counts,self.old_bigram_counts, left = True) +
+                                                    self.a_plus_b_q_k(b,cl1,cl2,self.old_left_sc_counts,self.old_right_sc_counts,self.old_bigram_counts) +
+                                                    self.a_plus_b_q_k(b,cl1,cl2,self.old_left_sc_counts,self.old_right_sc_counts,self.old_bigram_counts, left = True) -
                                                     self.a_plus_b_q_k(merged_class,cl1,cl2,self.left_cl_counts,self.right_cl_counts) -
                                                     self.a_plus_b_q_k(merged_class,cl1,cl2,self.left_cl_counts,self.right_cl_counts,left = True) 
                     ) # do q_k chceš propagovat bigram county (takhle nesedí unigram county a bigram county v čase)
-
-                if (merged_class == cl1 and merged_class != cl2) or (merged_class == cl2 and merged_class != cl1):
+                if (merged_class == cl1 and merged_class != cl2) or (merged_class == cl2 and merged_class != cl1) or (cl1 in [a,b] and cl2 not in [a,b]):
                     s_l = self.s_k(cl1, new_s_counts)
                     new_loss_table[(cl1 , cl2)] = self.compute_loss_2_classes(cl2,cl1,q_counts,new_s_counts,s_l)
 
         return new_loss_table
+
+    def update_s_counts(self,q_counts_old,
+                       q_counts_new, merged_class, a, b) -> dict:
+        new_s_counts = {}
+        for cl in self.classes:
+            if cl != merged_class:
+                new_s_counts[cl] = self.s_k(cl,self.old_s_counts) - self.q_k((a,cl),q_counts_old) \
+                                                - self.q_k((cl,a),q_counts_old) \
+                                                - self.q_k((b,cl),q_counts_old) \
+                                                - self.q_k((cl,b),q_counts_old) \
+                                                + self.q_k((merged_class,cl),q_counts_new) \
+                                                + self.q_k((cl,merged_class),q_counts_new) 
+            else:
+                new_s_counts[cl] = self.get_s_k(cl,q_counts_new,self.all_classes)
+        
+        return new_s_counts
 
     def update_classes(self,left_class,right_class) -> None:
         new_class = tuple(left_class + right_class)
@@ -198,6 +214,9 @@ class Word_Classes_Distribution(Probability):
         self.all_classes.remove(left_class)
         self.all_classes.remove(right_class)
         self.all_classes.append(new_class)
+
+        self.old_left_sc_counts = self.left_cl_counts.copy()
+        self.old_right_sc_counts = self.right_cl_counts.copy()
 
         self.left_cl_counts = self.init_single_counts(self.classes_bigram_counts,True) # chyba
         self.right_cl_counts = self.init_single_counts(self.classes_bigram_counts)
@@ -229,35 +248,25 @@ class Word_Classes_Distribution(Probability):
         new_s_counts = self.init_s_k(new_q_counts)
 
         losses = self.init_Losses(new_q_counts, new_s_counts, self.classes_bigram_counts)
-        old_losses = {}
-        old_s_counts = {}
-        old_bigram_counts={}
 
-        for i in range(number_of_iterations):
-            old_bigram_counts = self.classes_bigram_counts.copy()
-            old_losses = losses.copy()
-            old_s_counts = new_s_counts.copy()
+        for _ in range(number_of_iterations):
+            self.old_bigram_counts = self.classes_bigram_counts.copy()
+            self.old_losses = losses.copy()
+            self.old_s_counts = new_s_counts.copy()
             
-            min_cl = None
-            min = 10000000
-            for merged_cl in old_losses.keys():
-                if min > old_losses[merged_cl]:
-                    min = old_losses[merged_cl]
-                    min_cl = merged_cl
-              #      print(merged_cl)
-            print(f"Best merged class: {min_cl}, Loss: {min}")
+            min_cl, min_val = min(self.old_losses.items(), key=lambda x: x[1], default=(None, float('inf')))
+
+            print(f"Best merged class: {min_cl}, Loss: {min_val}")
           #  print(list(set(losses.keys())))
             self.history_of_merges.append(min_cl)
-            self.old_left_sc_counts = self.left_cl_counts.copy()
-            self.old_right_sc_counts = self.right_cl_counts.copy()
 
             self.merge_bigram_class_counts(min_cl[0],min_cl[1])
 
             new_q_counts = self.init_q_counts(self.classes_bigram_counts) # chyba
             new_s_counts = self.init_s_k(new_q_counts)
 
-            losses = self.update_loss_table(old_losses, self.classes,new_s_counts,new_q_counts,
-                                    old_s_counts,tuple(min_cl[0] + min_cl[1]),min_cl[0],min_cl[1],old_bigram_counts)
+            losses = self.update_loss_table(self.classes,new_s_counts,new_q_counts,
+                                            tuple(min_cl[0] + min_cl[1]),min_cl[0],min_cl[1])
 
     def mutual_information(self)-> float:
         mi = 0

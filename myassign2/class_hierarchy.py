@@ -1,7 +1,7 @@
 import sys
 import math
 from prob import Probability, read_file, count_words
-from classes import Word_Classes_Distribution, actual_count_words
+from classes import Word_Classes_Distribution, actual_count_words,get_tags
 import networkx as nx
 import matplotlib.pyplot as plt
 
@@ -50,5 +50,10 @@ if __name__ == '__main__':
 
     if len(sys.argv) > 1 and sys.argv[1] == "h":
         get_15_classes(w_cl_distr)
+    elif len(sys.argv) > 1 and sys.argv[1] == "t":
+        word_counts, word_tuple_counts, word_triple_counts, characters, last_bigram_unigram = get_tags(lines[:8000])
+        w_cl_distr = Word_Classes_Distribution(word_counts, word_tuple_counts, characters, last_bigram_unigram)
+        get_class_hierarchy(w_cl_distr)
+
     else:
         get_class_hierarchy(w_cl_distr)
